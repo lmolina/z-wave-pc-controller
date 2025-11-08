@@ -1,22 +1,300 @@
 # Z-Wave PC Controller: CLI Migration Plan (TDD, Lean, Iterative)
 
-**Version:** 1.0
+**Version:** 1.1
 **Date:** 2025-11-08
 **Approach:** Test-Driven Development, Lean Iterations, 25-40 min sessions
-**Target:** Linux-compatible CLI application with progressive feature addition
+**Target:** Linux-compatible CLI + GUI applications sharing a common backend library
 
 ---
 
 ## Table of Contents
 
-1. [Strategy Overview](#strategy-overview)
-2. [MVP Definition](#mvp-definition)
-3. [Project Setup](#project-setup)
-4. [Iteration Plan](#iteration-plan)
-5. [Session Structure](#session-structure)
-6. [Testing Strategy](#testing-strategy)
-7. [Implementation Roadmap](#implementation-roadmap)
-8. [Session Breakdown by Iteration](#session-breakdown-by-iteration)
+1. [End Goal: Dual Architecture](#end-goal-dual-architecture)
+2. [Strategy Overview](#strategy-overview)
+3. [MVP Definition](#mvp-definition)
+4. [Project Setup](#project-setup)
+5. [Iteration Plan](#iteration-plan)
+6. [Session Structure](#session-structure)
+7. [Testing Strategy](#testing-strategy)
+8. [Implementation Roadmap](#implementation-roadmap)
+9. [Session Breakdown by Iteration](#session-breakdown-by-iteration)
+10. [GUI Development Strategy](#gui-development-strategy)
+
+---
+
+## End Goal: Dual Architecture
+
+### Vision: CLI + GUI Sharing Common Backend
+
+The migration delivers **two applications** on a **single shared library**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    USER INTERFACES                          │
+│  ┌──────────────────────┐      ┌──────────────────────┐    │
+│  │   GUI Application    │      │   CLI Application    │    │
+│  │   (Avalonia UI)      │      │   (System.CommandLine│    │
+│  │                      │      │                      │    │
+│  │ - Rich visuals       │      │ - Scriptable         │    │
+│  │ - User-friendly      │      │ - Automation         │    │
+│  │ - Topology maps      │      │ - CI/CD integration  │    │
+│  │ - Wizards            │      │ - Quick operations   │    │
+│  │ - Real-time updates  │      │ - Headless servers   │    │
+│  └──────────┬───────────┘      └──────────┬───────────┘    │
+└─────────────┼──────────────────────────────┼────────────────┘
+              │                              │
+              └──────────────┬───────────────┘
+                             │
+              ┌──────────────▼───────────────┐
+              │  Shared Presentation Layer   │
+              │  (ViewModels, Commands)      │
+              │  - MVVM ViewModels           │
+              │  - Command pattern           │
+              │  - INotifyPropertyChanged    │
+              │  - Data binding sources      │
+              └──────────────┬───────────────┘
+                             │
+              ┌──────────────▼───────────────┐
+              │   ZWaveController Library    │
+              │   (Platform-agnostic .NET 8) │
+              │                              │
+              │  Services Layer:             │
+              │  ├─ ConnectionService        │
+              │  ├─ NodeManagementService    │
+              │  ├─ ConfigurationService     │
+              │  ├─ SecurityService          │
+              │  └─ TopologyService          │
+              │                              │
+              │  Session Management:         │
+              │  ├─ BasicControllerSession   │
+              │  ├─ ZipControllerSession     │
+              │  └─ SessionContainer         │
+              │                              │
+              │  Protocol Layer:             │
+              │  ├─ Z-Wave protocol logic    │
+              │  ├─ Command classes          │
+              │  ├─ Security (S0/S2)         │
+              │  └─ Transport (Serial/TCP)   │
+              └──────────────┬───────────────┘
+                             │
+              ┌──────────────▼───────────────┐
+              │   Platform Abstractions      │
+              │  ├─ ISerialPortProvider      │
+              │  ├─ IWebCamCapture           │
+              │  └─ IDeviceMonitor           │
+              └──────────────┬───────────────┘
+                             │
+                    ┌────────┴────────┐
+                    │                 │
+         ┌──────────▼────────┐  ┌────▼──────────────┐
+         │  Linux Platform   │  │ Windows Platform  │
+         │  - V4L2 webcam    │  │ - WMI device info │
+         │  - udev monitor   │  │ - Native DLLs     │
+         │  - sysfs parsing  │  │ - WPF (legacy)    │
+         └───────────────────┘  └───────────────────┘
+```
+
+### Benefits of This Architecture
+
+| Aspect | CLI Benefits | GUI Benefits | Shared Benefits |
+|--------|--------------|--------------|-----------------|
+| **Development** | Fast feedback, easy testing | Proven backend functionality | Single codebase to maintain |
+| **Use Cases** | Automation, scripting, CI/CD | User-friendly operations | Consistent behavior |
+| **Testing** | Comprehensive test coverage | GUI tests focus on UI only | Backend tested independently |
+| **Deployment** | Lightweight, headless servers | Desktop workstations | Both from same build |
+| **Learning Curve** | Power users, developers | General users | Documentation reuse |
+| **Debugging** | Easy to isolate issues | Visual feedback | Shared logging/telemetry |
+
+### Development Phases
+
+```
+Phase 1: Backend + CLI (THIS PLAN)     Phase 2: GUI (FUTURE)
+├─ Iterations 0-7                      ├─ Reuse ViewModels
+├─ ZWaveController library             ├─ Avalonia UI views
+├─ CLI application                     ├─ Visual components
+├─ 125-165 tests                       ├─ GUI-specific tests
+├─ .deb package                        └─ Unified installer
+└─ 24 hours (~6 weeks part-time)       └─ 16-20 hours additional
+
+Timeline: 10-12 weeks total for both CLI and GUI
+```
+
+### Why Build CLI First?
+
+1. **Validate Backend on Linux**
+   - Prove ZWaveController library works without WPF dependencies
+   - Identify platform-specific issues early
+   - Test serial communication, networking
+
+2. **Immediate Value**
+   - Usable tool from Iteration 0 (2.5 hours)
+   - Automation capabilities
+   - Scriptable workflows
+
+3. **Establish Patterns**
+   - Command execution model
+   - Service layer design
+   - Error handling
+   - Logging strategy
+
+4. **Comprehensive Testing**
+   - Backend fully tested before GUI
+   - GUI tests only need to cover UI logic
+   - Regression suite for both applications
+
+5. **Parallel Development**
+   - CLI can evolve independently
+   - GUI can be developed by different team/person
+   - Shared library ensures consistency
+
+### Shared Components
+
+#### What Gets Shared (90%+)
+
+```csharp
+// ZWaveController library (fully shared)
+namespace ZWaveController
+{
+    public interface IConnectionService { }
+    public interface INodeManagementService { }
+    public interface IConfigurationService { }
+    public interface ISecurityService { }
+
+    public class BasicControllerSession : IControllerSession { }
+    public class ZipControllerSession : IControllerSession { }
+}
+
+// ViewModels layer (shared between CLI and GUI)
+namespace ZWaveController.ViewModels
+{
+    public class ConnectionViewModel : INotifyPropertyChanged
+    {
+        private readonly IConnectionService _connectionService;
+
+        public ObservableCollection<PortInfo> AvailablePorts { get; }
+        public ICommand ConnectCommand { get; }
+
+        // Used by CLI: Direct method calls
+        public async Task<bool> ConnectAsync(string port) { }
+
+        // Used by GUI: Data binding
+        public string SelectedPort { get; set; }
+    }
+
+    public class NodeManagementViewModel { }
+    public class ConfigurationViewModel { }
+}
+```
+
+#### What Differs (<10%)
+
+```csharp
+// CLI-specific (thin wrapper)
+namespace ZWaveCLI.Commands
+{
+    public class ConnectCommand
+    {
+        private readonly ConnectionViewModel _viewModel;
+
+        public async Task<int> ExecuteAsync(string port)
+        {
+            var result = await _viewModel.ConnectAsync(port);
+            Console.WriteLine(result ? "✓ Connected" : "✗ Failed");
+            return result ? 0 : 1;
+        }
+    }
+}
+
+// GUI-specific (XAML + code-behind)
+namespace ZWaveGUI.Views
+{
+    public partial class ConnectionView : UserControl
+    {
+        public ConnectionView()
+        {
+            InitializeComponent();
+            DataContext = new ConnectionViewModel(/* DI */);
+        }
+    }
+}
+```
+
+```xml
+<!-- ConnectionView.axaml (Avalonia) -->
+<UserControl>
+  <StackPanel>
+    <ComboBox ItemsSource="{Binding AvailablePorts}"
+              SelectedItem="{Binding SelectedPort}"/>
+    <Button Command="{Binding ConnectCommand}"
+            Content="Connect"/>
+  </StackPanel>
+</UserControl>
+```
+
+### Migration Roadmap
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ CURRENT STATE (Windows only)                                │
+│ ├─ ZWaveControllerUI (WPF)                                  │
+│ └─ ZWaveController (.NET Framework 4.8)                     │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│ PHASE 1: Backend + CLI (Iterations 0-7, ~24 hours)         │
+│ ├─ ZWaveController (.NET 8, Linux-compatible)              │
+│ ├─ ZWaveController.ViewModels (Shared presentation layer)  │
+│ └─ ZWaveCLI (Command-line interface)                       │
+│    ✓ Fully functional on Linux                             │
+│    ✓ Feature parity with GUI core operations               │
+│    ✓ 125-165 tests, 80%+ coverage                          │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│ PHASE 2: GUI Development (~16-20 hours)                    │
+│ ├─ ZWaveGUI (Avalonia UI)                                  │
+│    ├─ Reuse ViewModels from Phase 1                        │
+│    ├─ XAML views (port from WPF or create new)             │
+│    ├─ Custom controls (topology map, etc.)                 │
+│    └─ GUI-specific tests                                   │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│ END STATE (Linux + Windows)                                │
+│ ├─ ZWaveController (shared backend)                        │
+│ ├─ ZWaveController.ViewModels (shared presentation)        │
+│ ├─ ZWaveCLI (automation, scripting)                        │
+│ └─ ZWaveGUI (user-friendly operations)                     │
+│    ✓ Both applications maintained in parallel              │
+│    ✓ Consistent behavior across CLI and GUI                │
+│    ✓ Users choose interface based on preference            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Success Criteria
+
+**Phase 1 Complete (CLI):**
+- ✅ CLI runs on Linux and Windows
+- ✅ All core features implemented
+- ✅ 125-165 passing tests
+- ✅ Comprehensive documentation
+- ✅ .deb and NuGet packages
+
+**Phase 2 Complete (GUI):**
+- ✅ GUI runs on Linux and Windows
+- ✅ Feature parity with CLI
+- ✅ Reuses 90%+ of backend code
+- ✅ Rich visualizations (topology, graphs)
+- ✅ Unified installer (CLI + GUI)
+
+**Both Applications:**
+- ✅ Share ZWaveController library
+- ✅ Consistent command execution
+- ✅ Same configuration format
+- ✅ Interoperable (CLI can script GUI workflows)
 
 ---
 
@@ -2065,6 +2343,393 @@ Examples:
 
 ---
 
+## GUI Development Strategy
+
+### Overview
+
+Once the CLI is complete (Iterations 0-7), the GUI development becomes **significantly simpler** because:
+
+1. ✅ Backend is proven and tested on Linux
+2. ✅ ViewModels already exist and are tested
+3. ✅ Command execution patterns established
+4. ✅ All business logic is working
+
+The GUI becomes a **thin presentation layer** on top of the proven backend.
+
+### Phase 2 Iterations (After CLI Complete)
+
+| Iteration | Feature | Sessions | Time | Notes |
+|-----------|---------|----------|------|-------|
+| **GUI-0** | Setup & Main Window | 3-4 | 2h | Avalonia project, DI, navigation |
+| **GUI-1** | Connection UI | 2-3 | 1.5h | Port list, connect button, status |
+| **GUI-2** | Node Management UI | 4-5 | 2.5h | Node list, add/remove, node info |
+| **GUI-3** | Command UI | 3-4 | 2h | Command sender, history, watch |
+| **GUI-4** | Configuration UI | 3-4 | 2h | Parameter editor, XML configs |
+| **GUI-5** | Security UI | 3-4 | 2h | S2 wizard, DSK input, key management |
+| **GUI-6** | Advanced UI | 4-5 | 2.5h | Topology map, firmware update |
+| **GUI-7** | Polish & Package | 3-4 | 2h | Themes, icons, installer |
+
+**Total:** 25-33 sessions (16-20 hours)
+
+### Shared ViewModel Example
+
+The same ViewModel serves both CLI and GUI:
+
+```csharp
+// ZWaveController.ViewModels/ConnectionViewModel.cs
+// This single class is used by BOTH CLI and GUI
+public class ConnectionViewModel : INotifyPropertyChanged
+{
+    private readonly IConnectionService _connectionService;
+    private readonly ISerialPortDetector _portDetector;
+
+    public ObservableCollection<PortInfo> AvailablePorts { get; }
+
+    private string _selectedPort;
+    public string SelectedPort
+    {
+        get => _selectedPort;
+        set
+        {
+            _selectedPort = value;
+            OnPropertyChanged();
+            ConnectCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private bool _isConnected;
+    public bool IsConnected
+    {
+        get => _isConnected;
+        private set
+        {
+            _isConnected = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(StatusText));
+        }
+    }
+
+    public string StatusText => IsConnected
+        ? $"✓ Connected to {SelectedPort}"
+        : "Not connected";
+
+    public IAsyncCommand ConnectCommand { get; }
+    public IAsyncCommand DisconnectCommand { get; }
+    public ICommand RefreshPortsCommand { get; }
+
+    public ConnectionViewModel(
+        IConnectionService connectionService,
+        ISerialPortDetector portDetector)
+    {
+        _connectionService = connectionService;
+        _portDetector = portDetector;
+
+        AvailablePorts = new ObservableCollection<PortInfo>();
+
+        ConnectCommand = new AsyncCommand(
+            execute: ConnectAsync,
+            canExecute: () => !string.IsNullOrEmpty(SelectedPort) && !IsConnected);
+
+        DisconnectCommand = new AsyncCommand(
+            execute: DisconnectAsync,
+            canExecute: () => IsConnected);
+
+        RefreshPortsCommand = new Command(RefreshPorts);
+
+        RefreshPorts();
+    }
+
+    // CLI calls this directly
+    public async Task<bool> ConnectAsync(string port)
+    {
+        var result = await _connectionService.ConnectAsync(port);
+        if (result)
+        {
+            SelectedPort = port;
+            IsConnected = true;
+        }
+        return result;
+    }
+
+    // GUI binds to ConnectCommand, which calls this
+    private async Task ConnectAsync()
+    {
+        await ConnectAsync(SelectedPort);
+    }
+
+    private async Task DisconnectAsync()
+    {
+        await _connectionService.DisconnectAsync();
+        IsConnected = false;
+    }
+
+    private void RefreshPorts()
+    {
+        AvailablePorts.Clear();
+        foreach (var port in _portDetector.GetAvailablePorts())
+        {
+            AvailablePorts.Add(port);
+        }
+    }
+}
+```
+
+### CLI Usage (Thin Wrapper)
+
+```csharp
+// ZWaveCLI/Commands/ConnectCommand.cs
+public class ConnectCommand : Command
+{
+    private readonly ConnectionViewModel _viewModel;
+
+    public ConnectCommand(ConnectionViewModel viewModel)
+    {
+        _viewModel = viewModel;
+    }
+
+    public async Task<int> ExecuteAsync(string port)
+    {
+        Console.WriteLine($"Connecting to {port}...");
+
+        var result = await _viewModel.ConnectAsync(port);
+
+        if (result)
+        {
+            Console.WriteLine($"✓ {_viewModel.StatusText}");
+            return 0;
+        }
+        else
+        {
+            Console.WriteLine("✗ Connection failed");
+            return 1;
+        }
+    }
+}
+```
+
+### GUI Usage (Data Binding)
+
+```xml
+<!-- ZWaveGUI/Views/ConnectionView.axaml -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <StackPanel Spacing="10">
+
+    <!-- Status -->
+    <TextBlock Text="{Binding StatusText}"
+               FontWeight="Bold"/>
+
+    <!-- Port Selection -->
+    <ComboBox ItemsSource="{Binding AvailablePorts}"
+              SelectedItem="{Binding SelectedPort}"
+              DisplayMemberBinding="{Binding DisplayName}"/>
+
+    <!-- Actions -->
+    <StackPanel Orientation="Horizontal" Spacing="10">
+      <Button Command="{Binding ConnectCommand}"
+              Content="Connect"/>
+      <Button Command="{Binding DisconnectCommand}"
+              Content="Disconnect"/>
+      <Button Command="{Binding RefreshPortsCommand}"
+              Content="Refresh"/>
+    </StackPanel>
+
+  </StackPanel>
+
+</UserControl>
+```
+
+```csharp
+// ZWaveGUI/Views/ConnectionView.axaml.cs
+public partial class ConnectionView : UserControl
+{
+    public ConnectionView()
+    {
+        InitializeComponent();
+    }
+}
+```
+
+```csharp
+// ZWaveGUI/ViewLocator.cs (Avalonia convention)
+public class ViewLocator : IDataTemplate
+{
+    public Control Build(object data)
+    {
+        var name = data.GetType().FullName!
+            .Replace("ViewModel", "View");
+        var type = Type.GetType(name);
+
+        if (type != null)
+        {
+            return (Control)Activator.CreateInstance(type)!;
+        }
+
+        return new TextBlock { Text = "Not Found: " + name };
+    }
+}
+```
+
+### Project Structure (Phase 1 + Phase 2)
+
+```
+z-wave-pc-controller/
+├── ZWaveController/                  (Backend library - SHARED)
+│   ├── Services/
+│   ├── Models/
+│   └── ZWaveController_netcore.csproj
+│
+├── ZWaveController.ViewModels/       (Presentation logic - SHARED)
+│   ├── ConnectionViewModel.cs
+│   ├── NodeManagementViewModel.cs
+│   ├── ConfigurationViewModel.cs
+│   ├── SecurityViewModel.cs
+│   └── ZWaveController.ViewModels.csproj
+│
+├── ZWaveCLI/                         (CLI application - Phase 1)
+│   ├── Commands/
+│   │   ├── ConnectCommand.cs
+│   │   ├── ListNodesCommand.cs
+│   │   └── ...
+│   ├── Program.cs
+│   └── ZWaveCLI.csproj
+│
+├── ZWaveGUI/                         (GUI application - Phase 2)
+│   ├── Views/
+│   │   ├── ConnectionView.axaml
+│   │   ├── NodeManagementView.axaml
+│   │   └── ...
+│   ├── App.axaml
+│   ├── Program.cs
+│   └── ZWaveGUI.csproj
+│
+├── ZWaveCLI.Tests/
+│   └── ... (CLI-specific tests)
+│
+└── ZWaveGUI.Tests/
+    └── ... (GUI-specific tests)
+```
+
+### Code Reuse Breakdown
+
+| Component | CLI | GUI | Shared |
+|-----------|-----|-----|--------|
+| **Backend (ZWaveController)** | ✓ | ✓ | 100% |
+| **ViewModels** | ✓ | ✓ | 100% |
+| **Commands (ICommand)** | ✓ | ✓ | 100% |
+| **Presentation Logic** | - | - | 0% (different) |
+| **CLI Commands** | ✓ | - | 0% |
+| **XAML Views** | - | ✓ | 0% |
+
+**Overall Code Reuse:** ~90%
+
+### GUI Session Example: Connection UI (Iteration GUI-1)
+
+#### Session GUI-1.1: Connection View (40 min)
+
+**Test First:**
+```csharp
+[Fact]
+public void ConnectionView_ShouldBindToViewModel()
+{
+    // Arrange
+    var viewModel = new ConnectionViewModel(
+        Mock.Of<IConnectionService>(),
+        Mock.Of<ISerialPortDetector>());
+
+    // Act
+    var view = new ConnectionView { DataContext = viewModel };
+
+    // Assert
+    view.DataContext.Should().Be(viewModel);
+}
+
+[Fact]
+public async Task ConnectButton_WhenClicked_ShouldCallViewModel()
+{
+    // Arrange (UI testing with Avalonia)
+    var mockService = new Mock<IConnectionService>();
+    mockService.Setup(s => s.ConnectAsync(It.IsAny<string>()))
+        .ReturnsAsync(true);
+
+    var viewModel = new ConnectionViewModel(
+        mockService.Object,
+        Mock.Of<ISerialPortDetector>());
+
+    var view = new ConnectionView { DataContext = viewModel };
+
+    // Act
+    viewModel.SelectedPort = "/dev/ttyUSB0";
+    await viewModel.ConnectCommand.ExecuteAsync();
+
+    // Assert
+    mockService.Verify(s => s.ConnectAsync("/dev/ttyUSB0"), Times.Once);
+    viewModel.IsConnected.Should().BeTrue();
+}
+```
+
+**Implementation:**
+1. Create `ConnectionView.axaml` with XAML
+2. Set up data binding
+3. Wire up commands
+4. Test in app
+
+**Commit:**
+```
+test: add connection view tests
+feat: implement connection view UI
+```
+
+### Benefits of This Approach
+
+| Benefit | Description |
+|---------|-------------|
+| **Proven Backend** | Backend is fully tested before GUI development |
+| **Faster GUI Development** | 60-70% less work than full GUI rewrite |
+| **Consistent Behavior** | Same ViewModels ensure CLI and GUI behave identically |
+| **Independent Evolution** | CLI and GUI can be updated independently |
+| **Lower Risk** | GUI bugs don't affect CLI, backend is isolated |
+| **Better Testing** | Backend tests don't need UI automation |
+
+### Timeline Summary
+
+```
+Week 1-2:  Iteration 0 (MVP CLI)           → Usable CLI
+Week 3-4:  Iterations 1-3 (Core CLI)       → Feature-rich CLI
+Week 5-6:  Iterations 4-7 (Advanced CLI)   → Complete CLI
+Week 7-8:  GUI Iterations 0-3              → Basic GUI
+Week 9-10: GUI Iterations 4-7              → Complete GUI
+
+Total: 10 weeks part-time (4-5 hours/week)
+       5 weeks full-time (8 hours/day)
+```
+
+### User Choice
+
+```bash
+# Power users / automation
+$ zwavecli add-node --timeout 30
+$ zwavecli list-nodes --format json > nodes.json
+$ zwavecli config-set 2 1 10
+
+# General users
+$ zwavegui  # Opens GUI application
+# Click "Add Node" button
+# Visual feedback, wizards, drag-drop
+```
+
+### Parallel Maintenance
+
+Once both are complete:
+
+- Bug fix in backend → Both CLI and GUI benefit
+- New feature → Implement in backend/ViewModel once, expose in both UIs
+- CLI-specific improvement → Only touch CLI layer
+- GUI-specific improvement → Only touch GUI layer
+
+---
+
 ## Next Steps
 
 1. **Set up project** (Session 0)
@@ -2105,20 +2770,65 @@ Examples:
 - [ ] No memory leaks
 - [ ] Documented in README
 
-### Final Success (All Iterations)
-- [ ] Feature parity with GUI app (core features)
-- [ ] 100+ passing tests
+### Phase 1 Complete (CLI - All 7 Iterations)
+- [ ] CLI runs on Linux and Windows
+- [ ] Feature parity with core operations
+- [ ] 125-165 passing tests
 - [ ] 80%+ code coverage
 - [ ] Works on Ubuntu 22.04, 24.04
 - [ ] .deb package available
 - [ ] Comprehensive documentation
 - [ ] CI/CD pipeline green
-- [ ] User testimonial: "It just works!"
+
+### Phase 2 Complete (GUI - Future)
+- [ ] GUI runs on Linux and Windows
+- [ ] Avalonia UI application
+- [ ] Reuses 90%+ of backend code
+- [ ] Rich visualizations (topology maps, graphs)
+- [ ] Wizard-based workflows
+- [ ] Unified installer (CLI + GUI bundle)
+
+### Both Applications (End Goal)
+- [ ] Share ZWaveController library
+- [ ] Share ViewModels layer
+- [ ] Consistent behavior across interfaces
+- [ ] Same configuration format
+- [ ] Interoperable (CLI scripts GUI workflows)
+- [ ] User testimonial: "I use both depending on the task!"
 
 ---
 
 **Document Status:** ✅ Ready for Implementation
-**Last Updated:** 2025-11-08
+**Last Updated:** 2025-11-08 (v1.1 - Added dual CLI+GUI architecture)
 **Next Review:** After Iteration 0 completion
 
-Let's build this iteratively! 🚀
+---
+
+## Quick Start
+
+Ready to begin? Here's your first hour:
+
+**Session 0: Environment Setup (30 min)**
+```bash
+cd z-wave-pc-controller
+mkdir ZWaveControllerCLI && cd ZWaveControllerCLI
+dotnet new sln -n ZWaveControllerCLI
+dotnet new console -n ZWaveCLI -f net8.0
+dotnet new xunit -n ZWaveCLI.Tests -f net8.0
+# ... (see Session 0 in plan for complete setup)
+```
+
+**Session 0.1: First Test (30 min)**
+```csharp
+// Write your first failing test
+[Fact]
+public void SerialPortDetector_ShouldDetectPorts()
+{
+    var detector = new SerialPortDetector();
+    var ports = detector.GetAvailablePorts();
+    ports.Should().NotBeNull();
+}
+// Make it pass! 🎉
+```
+
+Let's build this iteratively - **CLI first, then GUI**! 🚀
