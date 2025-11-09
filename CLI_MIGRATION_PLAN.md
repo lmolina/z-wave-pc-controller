@@ -2804,21 +2804,82 @@ Once both are complete:
 
 ---
 
+## Current Status
+
+**Date:** 2025-11-09
+**Phase:** Session 0 - Environment Setup
+**Status:** ✅ **COMPLETE**
+
+### Completed Tasks
+- ✅ Backend upgraded to .NET 8 (`ZWaveController_netcore.csproj`)
+- ✅ CLI project structure created (`ZWaveCLI/`)
+- ✅ Test project structure created (`ZWaveCLI.Tests/`)
+- ✅ Solution file updated with new projects
+- ✅ Project files configured with dependencies
+- ✅ Basic Program.cs with DI setup
+- ✅ Test framework configured (xUnit, FluentAssertions, Moq, Verify)
+- ✅ CLI README documentation created
+
+### Project Structure Created
+```
+z-wave-pc-controller/
+├── ZWaveCLI/
+│   ├── Program.cs              # Entry point with DI
+│   ├── Commands/               # Command implementations (empty)
+│   ├── Services/               # CLI services (empty)
+│   ├── Models/                 # CLI models (empty)
+│   ├── README.md               # CLI documentation
+│   └── ZWaveCLI.csproj        # .NET 8 project
+├── ZWaveCLI.Tests/
+│   ├── Commands/               # Command tests (empty)
+│   ├── Services/               # Service tests (empty)
+│   ├── Integration/            # Integration tests (empty)
+│   ├── Helpers/
+│   │   └── TestDataBuilder.cs # Test data builder template
+│   ├── ProgramTests.cs         # Basic test file
+│   └── ZWaveCLI.Tests.csproj  # .NET 8 test project
+├── ZWaveController/
+│   └── ZWaveController_netcore.csproj  # ✅ Upgraded to .NET 8
+└── ZWaveController.sln         # ✅ Updated with CLI projects
+```
+
+### Next Steps (Iteration 0 - MVP)
+
+**⚠️ PREREQUISITE**: Install .NET 8 SDK
+
+Once .NET 8 SDK is available, verify the setup:
+```bash
+# Verify build
+dotnet build ZWaveController.sln
+
+# Run tests
+dotnet test ZWaveCLI.Tests/ZWaveCLI.Tests.csproj
+
+# Run CLI
+dotnet run --project ZWaveCLI/ZWaveCLI.csproj -- --help
+```
+
+**Then proceed with Iteration 0:**
+- Session 0.1: Serial Port Detection (30 min)
+- Session 0.2: Connection Command (35 min)
+- Session 0.3: Version Information (30 min)
+- Session 0.4: List Ports Command (25 min)
+- Session 0.5: Integration & Manual Testing (40 min)
+
+See the [Project Setup](#project-setup) section for detailed instructions.
+
+---
+
 ## Quick Start
 
 Ready to begin? Here's your first hour:
 
-**Session 0: Environment Setup (30 min)**
-```bash
-cd z-wave-pc-controller
-mkdir ZWaveControllerCLI && cd ZWaveControllerCLI
-dotnet new sln -n ZWaveControllerCLI
-dotnet new console -n ZWaveCLI -f net8.0
-dotnet new xunit -n ZWaveCLI.Tests -f net8.0
-# ... (see Session 0 in plan for complete setup)
-```
+**Session 0: Environment Setup** ✅ **COMPLETE**
+- Project structure created
+- Dependencies configured
+- Solution file updated
 
-**Session 0.1: First Test (30 min)**
+**Session 0.1: First Test (30 min)** ⭕ **NEXT**
 ```csharp
 // Write your first failing test
 [Fact]

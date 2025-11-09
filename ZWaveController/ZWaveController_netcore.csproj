@@ -2,8 +2,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<AssemblyName>ZWaveController</AssemblyName>
-		<TargetFrameworks>net6.0</TargetFrameworks>
+		<TargetFrameworks>net8.0</TargetFrameworks>
 		<EnableDefaultCompileItems>False</EnableDefaultCompileItems>
+		<LangVersion>latest</LangVersion>
 	</PropertyGroup>
 	<Target Name="ClearObjFolderTarget" BeforeTargets="Restore">
 		<ItemGroup>
