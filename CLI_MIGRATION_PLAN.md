@@ -560,19 +560,40 @@ ZWaveControllerCLI/
 
 ## Testing Strategy
 
+### Coverage Targets
+
+**Overall Goal:** 80%+ line coverage (mid-long term)
+
+**Per-Iteration Targets:**
+- Iteration 0 (MVP): ≥85% coverage (foundation must be solid)
+- Iterations 1-2: ≥80% coverage (core functionality)
+- Iterations 3-5: ≥75% coverage (complex features)
+- Iteration 6: ≥70% coverage (advanced, less used)
+- Iteration 7: ≥80% coverage (polish and fill gaps)
+
+**📊 See [CODE_COVERAGE_STRATEGY.md](CODE_COVERAGE_STRATEGY.md) for:**
+- Detailed coverage plan with per-file targets
+- High-impact vs low-impact coverage matrix
+- AI agent instructions for coverage monitoring
+- Coverage measurement setup (Coverlet + ReportGenerator)
+- Quality metrics and red flags
+
 ### Test Pyramid
 
 ```
         ┌─────────────┐
         │   Manual    │  ← Integration tests with real hardware (10%)
-        └─────────────┘
+        └─────────────┘      10-15 E2E scenarios
        ┌───────────────┐
        │ Integration   │  ← In-process integration tests (20%)
-       └───────────────┘
+       └───────────────┘     30-40 mocked E2E tests
       ┌─────────────────┐
       │   Unit Tests    │  ← Fast, isolated tests (70%)
-      └─────────────────┘
+      └─────────────────┘    125-165 focused tests
 ```
+
+**Total Test Estimate:** 165-220 tests (1,220-1,630 LOC)
+**Test/Code Ratio:** ≥0.4 (40 test lines per 100 code lines)
 
 ### Test Categories
 
@@ -2090,17 +2111,21 @@ docs: add installation instructions
 
 ### Summary Table
 
-| Iteration | Feature | Sessions | Est. Time | Tests | LOC |
-|-----------|---------|----------|-----------|-------|-----|
-| 0 | MVP (Connect & Info) | 5 | 2.5h | 15-20 | 500 |
-| 1 | Node Discovery | 4 | 2h | 10-15 | 300 |
-| 2 | Basic Commands | 5 | 2.5h | 15-20 | 400 |
-| 3 | Network Management | 8 | 4h | 20-25 | 600 |
-| 4 | Configuration | 5 | 2.5h | 15-20 | 350 |
-| 5 | Security | 6 | 3.5h | 15-20 | 450 |
-| 6 | Advanced Features | 10 | 5h | 25-30 | 800 |
-| 7 | Polish & Package | 4 | 2h | 10-15 | 200 |
-| **Total** | **Full CLI** | **47** | **24h** | **125-165** | **3600** |
+| Iteration | Feature | Sessions | Est. Time | Tests | LOC | Coverage Target |
+|-----------|---------|----------|-----------|-------|-----|-----------------|
+| 0 | MVP (Connect & Info) | 5 | 2.5h | 15-20 | 500 | **≥85%** ⭐ |
+| 1 | Node Discovery | 4 | 2h | 10-15 | 300 | **≥80%** |
+| 2 | Basic Commands | 5 | 2.5h | 15-20 | 400 | **≥80%** |
+| 3 | Network Management | 8 | 4h | 20-25 | 600 | **≥75%** |
+| 4 | Configuration | 5 | 2.5h | 15-20 | 350 | **≥75%** |
+| 5 | Security | 6 | 3.5h | 15-20 | 450 | **≥75%** |
+| 6 | Advanced Features | 10 | 5h | 25-30 | 800 | **≥70%** |
+| 7 | Polish & Package | 4 | 2h | 10-15 | 200 | **≥80%** |
+| **Total** | **Full CLI** | **47** | **24h** | **125-165** | **3600** | **≥80%** ✅ |
+
+**⭐ Iteration 0 has highest coverage target (85%) as it's the foundation.**
+
+**See [CODE_COVERAGE_STRATEGY.md](CODE_COVERAGE_STRATEGY.md) for detailed per-file targets and coverage tracking tables.**
 
 ---
 
