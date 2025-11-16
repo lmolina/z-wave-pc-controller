@@ -2,6 +2,7 @@ using System.CommandLine;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using ZWaveCLI.Services;
 
 namespace ZWaveCLI;
 
@@ -36,7 +37,8 @@ class Program
                 });
 
                 // Register services
-                // TODO: Register connection service, port detector, etc.
+                services.AddSingleton<ISerialPortDetector, SerialPortDetector>();
+                // TODO: Register connection service, etc.
 
                 // Register CLI commands
                 services.AddSingleton<RootCommand>(sp =>
